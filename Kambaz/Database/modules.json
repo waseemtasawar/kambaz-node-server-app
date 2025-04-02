@@ -1,0 +1,31 @@
+[
+    {
+      "id": "123",
+      "course": "RS101",
+      "name": "Introduction to Rocket Propulsion",
+      "lessons": [
+        { "id": "l1", "name": "History of Rocketry" },
+        { "id": "l2", "name": "Rocket Propulsion Fundamentals" },
+        { "id": "l3", "name": "Rocket Engine Types" }
+      ]
+    },
+    {
+      "id": "345",
+      "course": "RS101",
+      "name": "Rocket Propellant Types",
+      "lessons": [
+        { "id": "l4", "name": "Solid Propellants" },
+        { "id": "l5", "name": "Liquid Propellants" }
+      ]
+    },
+    {
+      "id": "567",
+      "course": "RS102",
+      "name": "Spacecraft Navigation",
+      "lessons": [
+        { "id": "l6", "name": "Orbital Mechanics" },
+        { "id": "l7", "name": "Deep Space Navigation" }
+      ]
+    }
+  ]
+  
