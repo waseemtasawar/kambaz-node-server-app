@@ -5,38 +5,45 @@ import "dotenv/config";
 import Lab5 from "./Lab5/index.js";
 import session from "express-session";
 import cors from "cors";
+import compression from "compression";
 import UserRoutes from "./Kambaz/Users/routes.js";
 import CourseRoutes from "./Kambaz/Courses/routes.js";
 import ModuleRoutes from "./Kambaz/Modules/routes.js";
-import compression from "compression";
 
 const app = express();
 
-// Enhanced CORS configuration
+// ✅ Allowed origins
 const allowedOrigins = [
-  process.env.NETLIFY_URL || "https://kambazwebsite.netlify.app",
+  "https://kambazwebsite.netlify.app/#/Kambaz/Account/Signin",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
 ];
 
+// ✅ CORS middleware
 app.use(
   cors({
     credentials: true,
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
+      // Allow no-origin (like mobile apps, curl, Postman)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) === -1) {
-        const msg = `The CORS policy for this site does not allow access from ${origin}`;
-        return callback(new Error(msg), false);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(
+          new Error(`CORS policy does not allow access from ${origin}`),
+          false
+        );
       }
-      return callback(null, true);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-// Session configuration
+// ✅ Preflight OPTIONS requests handler
+app.options("*", cors());
+
+// ✅ Session configuration
 const sessionOptions = {
   secret: process.env.SESSION_SECRET || "kambaz",
   resave: false,
@@ -48,10 +55,9 @@ if (process.env.NODE_ENV !== "development") {
   sessionOptions.cookie = {
     sameSite: "none",
     secure: true,
-    domain: process.env.NODE_SERVER_DOMAIN,
+    domain: process.env.NODE_SERVER_DOMAIN, // optional
   };
 } else {
-  // Development-specific cookie settings
   sessionOptions.cookie = {
     secure: false,
     sameSite: "lax",
@@ -62,27 +68,27 @@ app.use(session(sessionOptions));
 app.use(express.json());
 app.use(compression());
 
-// Routes
+// ✅ Routes
 UserRoutes(app);
 CourseRoutes(app);
 ModuleRoutes(app);
-
 Hello(app);
 Lab5(app);
 
-// Database connection
+// ✅ MongoDB connection
 const CONNECTION_STRING = process.env.MONGO_CONNECTION_STRING;
 
 mongoose
   .connect(CONNECTION_STRING)
   .then(() => {
-    console.log("Database connected Successfully");
+    console.log("✅ Database connected successfully");
   })
   .catch((error) => {
-    console.log("Database is not Connected", error);
+    console.log("❌ Database connection failed", error);
   });
 
-// Server startup
-app.listen(process.env.PORT || 4000, () => {
-  console.log(`Server running on http://localhost:${process.env.PORT || 4000}`);
+// ✅ Start server
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
