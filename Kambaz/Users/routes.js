@@ -38,14 +38,21 @@ export default function UserRoutes(app) {
       res.status(400).json({ message: err.message });
     }
   };
-
   const findAllUsers = async (req, res) => {
-    try {
-      const users = await dao.findAllUsers();
+    const { role, name } = req.query;
+    if (role) {
+      const users = await dao.findUsersByRole(role);
       res.json(users);
-    } catch (err) {
-      res.status(400).json({ message: err.message });
+      return;
     }
+    if (name) {
+      const users = await dao.findUsersByPartialName(name);
+      res.json(users);
+      return;
+    }
+
+    const users = await dao.findAllUsers();
+    res.json(users);
   };
 
   const findUserById = async (req, res) => {
@@ -58,44 +65,114 @@ export default function UserRoutes(app) {
   };
 
   const updateUser = async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const userUpdates = req.body;
-      await dao.updateUser(userId, userUpdates);
-      const currentUser = await dao.findUserById(userId);
-      req.session["currentUser"] = currentUser;
-      res.json(currentUser);
-    } catch (err) {
-      res.status(400).json({ message: err.message });
+    const { userId } = req.params;
+    const userUpdates = req.body;
+    await dao.updateUser(userId, userUpdates);
+    const currentUser = req.session["currentUser"];
+    if (currentUser && currentUser._id === userId) {
+      req.session["currentUser"] = { ...currentUser, ...userUpdates };
     }
+    res.json(currentUser);
   };
 
   const signup = async (req, res) => {
     try {
-      const user = await dao.findUserByUsername(req.body.username);
-      if (user) {
-        res.status(400).json({ message: "Username already in use" });
-        return;
+      // 1. Validate required fields
+      if (!req.body._id || !req.body.username || !req.body.password) {
+        return res.status(400).json({
+          message: "_id, username, and password are required",
+        });
       }
-      const currentUser = await dao.createUser(req.body);
+
+      // 2. Check for existing user or ID
+      const [existingUser, idExists] = await Promise.all([
+        dao.findUserByUsername(req.body.username),
+        dao.findUserById(req.body._id), // Add this method to your DAO
+      ]);
+
+      if (existingUser) {
+        return res.status(400).json({ message: "Username already in use" });
+      }
+      if (idExists) {
+        return res.status(400).json({ message: "User ID already exists" });
+      }
+
+      // 3. Prepare user data with defaults
+      const userData = {
+        _id: req.body._id, // Your manual ID
+        username: req.body.username,
+        password: req.body.password,
+        firstName: req.body.firstName || null,
+        lastName: req.body.lastName || null,
+        email: req.body.email || null,
+        role: req.body.role || "USER",
+        loginId: req.body.loginId || generateDefaultLoginId(), // Custom function
+        section: req.body.section || "default",
+        lastActivity: req.body.lastActivity || new Date(),
+        totalActivity: req.body.totalActivity || "0",
+      };
+
+      // 4. Create user
+      const currentUser = await dao.createUser(userData);
+
+      // 5. Set session and respond
       req.session["currentUser"] = currentUser;
-      res.json(currentUser);
+      res.status(201).json({
+        _id: currentUser._id,
+        username: currentUser.username,
+        role: currentUser.role,
+        loginId: currentUser.loginId,
+        section: currentUser.section,
+        // Include other fields you want to return
+      });
     } catch (err) {
-      res.status(400).json({ message: err.message });
+      console.error("Signup error:", err);
+
+      // Handle duplicate key errors
+      if (err.code === 11000) {
+        const field = err.keyPattern.username ? "username" : "_id";
+        return res.status(400).json({
+          message: `${field} already exists`,
+        });
+      }
+
+      res.status(400).json({
+        message: err.message,
+        ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
+      });
     }
   };
+
+  // Helper function (add this to your utilities)
+  function generateDefaultLoginId() {
+    return `user_${Math.random().toString(36).substring(2, 9)}`;
+  }
 
   const signin = async (req, res) => {
     try {
       const { username, password } = req.body;
+      console.log("Login attempt for:", username); // Add logging
+
       const currentUser = await dao.findUserByCredentials(username, password);
+
       if (currentUser) {
+        console.log("Login successful for:", username);
         req.session["currentUser"] = currentUser;
-        res.json(currentUser);
+
+        // Ensure session is saved before responding
+        req.session.save((err) => {
+          if (err) {
+            console.error("Session save error:", err);
+            return res.status(500).json({ message: "Session error" });
+          }
+          res.json(currentUser);
+        });
       } else {
+        console.log("Invalid credentials for:", username);
         res.status(401).json({ message: "Invalid credentials" });
       }
     } catch (err) {
+      console.error("Signin error:", err);
       res.status(400).json({ message: err.message });
     }
   };

@@ -1,35 +1,91 @@
-import Database from "../Database/index.js";
-export function findAllCourses() {
-  return Database.courses;
-}
+import model from "./model.js";
 
-export function findCoursesForEnrolledUser(userId) {
-  const { courses, enrollments } = Database;
-  const enrolledCourses = courses.filter((course) =>
-    enrollments.some(
-      (enrollment) =>
-        enrollment.user === userId && enrollment.course === course._id
-    )
-  );
-  return enrolledCourses;
-}
+export const findAllCourses = async () => {
+  try {
+    return await model.find().populate("modules").exec();
+  } catch (error) {
+    console.error("Error finding all courses:", error);
+    throw new Error("Failed to fetch courses");
+  }
+};
 
-export function createCourse(course) {
-  const newCourse = { ...course, _id: uuidv4() };
-  Database.courses = [...Database.courses, newCourse];
-  return newCourse;
-}
+export const findCourseById = async (courseId) => {
+  try {
+    return await model.findById(courseId).populate("modules").exec();
+  } catch (error) {
+    console.error(`Error finding course ${courseId}:`, error);
+    throw new Error("Course not found");
+  }
+};
 
-export function deleteCourse(courseId) {
-  const { courses, enrollments } = Database;
-  Database.courses = courses.filter((course) => course._id !== courseId);
-  Database.enrollments = enrollments.filter(
-    (enrollment) => enrollment.course !== courseId
-  );
-}
-export function updateCourse(courseId, courseUpdates) {
-  const { courses } = Database;
-  const course = courses.find((course) => course._id === courseId);
-  Object.assign(course, courseUpdates);
-  return course;
-}
+export const findCoursesForEnrolledUser = async (userId) => {
+  try {
+    return await model.aggregate([
+      {
+        $lookup: {
+          from: "enrollments",
+          let: { courseId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$user", userId] },
+                    { $eq: ["$course", "$$courseId"] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "enrollment",
+        },
+      },
+      {
+        $match: {
+          enrollment: { $ne: [] },
+        },
+      },
+      {
+        $addFields: {
+          enrolled: true,
+        },
+      },
+    ]);
+  } catch (error) {
+    console.error(`Error finding courses for user ${userId}:`, error);
+    throw new Error("Failed to fetch enrolled courses");
+  }
+};
+
+export const createCourse = async (course) => {
+  try {
+    // Remove _id if present to let MongoDB generate it
+    const { _id, ...courseData } = course;
+    return await model.create(courseData);
+  } catch (error) {
+    console.error("Error creating course:", error);
+    throw new Error("Failed to create course");
+  }
+};
+
+export const deleteCourse = async (courseId) => {
+  try {
+    return await model.deleteOne({ _id: courseId });
+  } catch (error) {
+    console.error(`Error deleting course ${courseId}:`, error);
+    throw new Error("Failed to delete course");
+  }
+};
+
+export const updateCourse = async (courseId, courseUpdates) => {
+  try {
+    return await model.updateOne(
+      { _id: courseId },
+      { $set: courseUpdates },
+      { new: true }
+    );
+  } catch (error) {
+    console.error(`Error updating course ${courseId}:`, error);
+    throw new Error("Failed to update course");
+  }
+};
