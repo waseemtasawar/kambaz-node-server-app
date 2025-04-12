@@ -14,17 +14,16 @@ const app = express();
 
 // ✅ Allowed origins
 const allowedOrigins = [
-  "https://kambazwebsite.netlify.app/#/Kambaz/Account/Signin",
+  "https://kambazwebsite.netlify.app",
   "http://localhost:5173",
   "http://127.0.0.1:5173",
 ];
 
-// ✅ CORS middleware
+// ✅ CORS configuration
 app.use(
   cors({
     credentials: true,
     origin: function (origin, callback) {
-      // Allow no-origin (like mobile apps, curl, Postman)
       if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
@@ -40,10 +39,16 @@ app.use(
   })
 );
 
-// ✅ Preflight OPTIONS requests handler
-app.options("*", cors());
+// ✅ Preflight request fix
+app.options(
+  "*",
+  cors({
+    credentials: true,
+    origin: allowedOrigins,
+  })
+);
 
-// ✅ Session configuration
+// ✅ Session config
 const sessionOptions = {
   secret: process.env.SESSION_SECRET || "kambaz",
   resave: false,
@@ -51,11 +56,11 @@ const sessionOptions = {
 };
 
 if (process.env.NODE_ENV !== "development") {
+  // ✅ Production settings (needed for Netlify)
   sessionOptions.proxy = true;
   sessionOptions.cookie = {
     sameSite: "none",
     secure: true,
-    domain: process.env.NODE_SERVER_DOMAIN, // optional
   };
 } else {
   sessionOptions.cookie = {
@@ -80,12 +85,8 @@ const CONNECTION_STRING = process.env.MONGO_CONNECTION_STRING;
 
 mongoose
   .connect(CONNECTION_STRING)
-  .then(() => {
-    console.log("✅ Database connected successfully");
-  })
-  .catch((error) => {
-    console.log("❌ Database connection failed", error);
-  });
+  .then(() => console.log("✅ MongoDB Connected"))
+  .catch((error) => console.error("❌ MongoDB Connection Failed", error));
 
 // ✅ Start server
 const PORT = process.env.PORT || 4000;
